@@ -6,6 +6,7 @@
         "node": ">=22.12.0"
     },
     "scripts": {
+        "download-archives": "node scripts/download-archives.mjs",
         "archive": "node scripts/build-archive.mjs && pagefind --site public",
         "dev": "astro dev",
         "build": "node scripts/build-archive.mjs && astro build && pagefind --site dist",
@@ -18,8 +19,9 @@
         "astro": "^6.4.4"
     },
     "devDependencies": {
+        "7zip-min": "^3.0.1",
         "cheerio": "^1.2.0",
         "pagefind": "^1.5.2",
-        "wrangler": "^4.1.0"
+        "wrangler": "^4.98.0"
     }
 }

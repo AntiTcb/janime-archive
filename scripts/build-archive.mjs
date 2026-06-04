@@ -35,6 +35,93 @@ const assetCache = new Map();
 /** @type {Map<string, { route: string, title: string, category: string, threadId: string, page: number }>} */
 const routeMap = new Map();
 
+const CHARSET_FROM_META =
+	/<meta[^>]+charset\s*=\s*["']?([^"'>\s;]+)/i;
+const CHARSET_FROM_CONTENT_TYPE =
+	/content\s*=\s*["'][^"']*charset\s*=\s*([^"'>\s;]+)/i;
+
+/**
+ * @param {Buffer} buffer
+ * @returns {string | null}
+ */
+function parseDeclaredCharset(buffer) {
+	const head = buffer.subarray(0, Math.min(buffer.length, 16384)).toString("latin1");
+	return (
+		head.match(CHARSET_FROM_META)?.[1]?.toLowerCase().trim() ??
+		head.match(CHARSET_FROM_CONTENT_TYPE)?.[1]?.toLowerCase().trim() ??
+		null
+	);
+}
+
+/**
+ * @param {Buffer} buffer
+ */
+function isValidUtf8(buffer) {
+	try {
+		new TextDecoder("utf-8", { fatal: true }).decode(buffer);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+/**
+ * @param {Buffer} buffer
+ * @returns {string}
+ */
+function decodeHtmlBuffer(buffer) {
+	if (buffer.length >= 3 && buffer[0] === 0xef && buffer[1] === 0xbb && buffer[2] === 0xbf) {
+		return buffer.subarray(3).toString("utf8");
+	}
+
+	const declared = parseDeclaredCharset(buffer);
+	if (declared === "utf-8" || declared === "utf8") {
+		return buffer.toString("utf8");
+	}
+
+	// Saved forum pages often label ISO-8859-1 but store UTF-8 (wiki pages, mixed exports).
+	if (isValidUtf8(buffer)) {
+		return buffer.toString("utf8");
+	}
+
+	if (
+		declared === "iso-8859-1" ||
+		declared === "iso8859-1" ||
+		declared === "latin1" ||
+		declared === "windows-1252" ||
+		declared === "cp1252"
+	) {
+		const label =
+			declared === "windows-1252" || declared === "cp1252"
+				? "windows-1252"
+				: "iso-8859-1";
+		return new TextDecoder(label).decode(buffer);
+	}
+
+	return buffer.toString("utf8");
+}
+
+/**
+ * @param {string} filePath
+ * @returns {string}
+ */
+function readHtmlFile(filePath) {
+	return decodeHtmlBuffer(fs.readFileSync(filePath));
+}
+
+/**
+ * @param {import('cheerio').CheerioAPI} $
+ */
+function ensureUtf8Document($) {
+	$("meta[charset]").remove();
+	$('meta[http-equiv="Content-Type" i]').remove();
+	$('meta[http-equiv="content-type" i]').remove();
+	if (!$("head").length) {
+		$("html").prepend("<head></head>");
+	}
+	$("head").prepend('<meta charset="utf-8">');
+}
+
 /**
  * @param {string} text
  */
@@ -44,7 +131,10 @@ function decodeHtmlEntities(text) {
 		.replace(/&lt;/g, "<")
 		.replace(/&gt;/g, ">")
 		.replace(/&quot;/g, '"')
-		.replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)));
+		.replace(/&#x([0-9a-fA-F]+);/g, (_, hex) =>
+			String.fromCodePoint(Number.parseInt(hex, 16)),
+		)
+		.replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)));
 }
 
 /**
@@ -310,7 +400,7 @@ function rewriteAssets($, pageDir, filesPrefix) {
  * @param {{ category: string, threadId: string, page: number, threadSlug: string, route: string, title: string }} meta
  */
 function processPage(filePath, meta) {
-	const html = fs.readFileSync(filePath, "utf8");
+	const html = readHtmlFile(filePath);
 	const $ = cheerio.load(html, { decodeEntities: false });
 	const pageDir = path.dirname(filePath);
 	const filesPrefix = getFilesFolderPrefix(filePath);
@@ -331,6 +421,8 @@ function processPage(filePath, meta) {
 	} else {
 		$("#content, .postlist, body").first().attr("data-pagefind-body", "");
 	}
+
+	ensureUtf8Document($);
 
 	$("head").append(
 		`<meta data-pagefind-meta="title:${meta.title.replace(/"/g, "&quot;")}" />` +
@@ -526,7 +618,7 @@ function main() {
 		const { withoutPage, threadId, page } = parseFilenameMeta(filePath);
 		const category = getCategory(filePath);
 		const threadSlug = getThreadSlug(filePath, withoutPage);
-		const html = fs.readFileSync(filePath, "utf8");
+		const html = readHtmlFile(filePath);
 		const titleMatch = html.match(/<title>\s*(.*?)\s*<\/title>/i);
 		const threadTitleMatch = html.match(
 			/class="threadtitle"[^>]*>[\s\S]*?<a[^>]*>([^<]+)<\/a>/i,
