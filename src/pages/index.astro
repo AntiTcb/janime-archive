@@ -1,17 +1,65 @@
 ---
+import Base from "../layouts/Base.astro";
+import archiveIndex from "../data/archive-index.json";
 
+const { categories } = archiveIndex;
+const totalPages = categories.reduce(
+	(acc, cat) =>
+		acc + cat.threads.reduce((t, thread) => t + thread.pages.length, 0),
+	0,
+);
+const totalThreads = categories.reduce((acc, cat) => acc + cat.threads.length, 0);
 ---
 
-<html lang="en">
-	<head>
-		<meta charset="utf-8" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<link rel="icon" href="/favicon.ico" />
-		<meta name="viewport" content="width=device-width" />
-		<meta name="generator" content={Astro.generator} />
-		<title>Astro</title>
-	</head>
-	<body>
-		<h1>Astro</h1>
-	</body>
-</html>
+<Base title="JAnime Archive" description="JAnime forum archive — browse and search">
+	<header class="site-header">
+		<h1>JAnime Archive</h1>
+		<p>
+			{totalPages} pages across {totalThreads} threads in {categories.length}{" "}
+			archives
+		</p>
+	</header>
+
+	<nav class="category-grid" aria-label="Browse archive">
+		{
+			categories.map((cat) => (
+				<section class="category-card" id={`cat-${cat.slug}`}>
+					<h2>{cat.name}</h2>
+					<ul>
+						{cat.threads.map((thread) => (
+							<li>
+								<a class="thread-title" href={thread.pages[0]?.route}>
+									{thread.title}
+									{"screenshotArchive" in thread && thread.screenshotArchive ? (
+										<span class="thread-badge">screenshots</span>
+									) : null}
+								</a>
+								{thread.pages.length > 1 ? (
+									<div class="page-links">
+										{thread.pages.map((p, i) => (
+											<span>
+												{i > 0 ? " · " : ""}
+												<a href={p.route}>p.{p.page}</a>
+											</span>
+										))}
+									</div>
+								) : null}
+							</li>
+						))}
+					</ul>
+				</section>
+			))
+		}
+	</nav>
+
+	<style>
+		.thread-badge {
+			margin-left: 0.35rem;
+			font-size: 0.72rem;
+			font-weight: 500;
+			color: #9898b0;
+			text-transform: uppercase;
+			letter-spacing: 0.03em;
+		}
+	</style>
+</Base>
