@@ -10,7 +10,7 @@
         "download-archives": "node scripts/download-archives.mjs",
         "archive": "node scripts/build-archive.mjs && pagefind --site public",
         "dev": "astro dev",
-        "build": "node scripts/build-archive.mjs && astro build && pagefind --site dist",
+        "build": "node scripts/download-archives.mjs && node scripts/build-archive.mjs && astro build && pagefind --site dist",
         "preview": "astro preview",
         "deploy": "pnpm build && wrangler deploy",
         "astro": "astro"
