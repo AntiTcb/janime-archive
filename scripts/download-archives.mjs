@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
 const DOWNLOAD_DIR = path.join(ROOT, "downloads");
-const ARCHIVE_DIR = path.join(ROOT, "archive");
+const ARCHIVE_DIR = path.join(ROOT, "archives");
 
 const DROPBOX_URLS = [
   "https://www.dropbox.com/s/sra430u110gijg4/Janime%20Wiki.7z?dl=0",
